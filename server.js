@@ -59,12 +59,7 @@ const verifyToken = (req, res, next) => {
 
 // Routes
 app.get('/', (req, res) => {
-  res.json({ 
-    message: 'ترافيان الأول - Travian First',
-    status: 'Server is running!',
-    dbConnected: dbConnected,
-    timestamp: new Date()
-  });
+  res.sendFile(__dirname + '/public/index.html');
 });
 
 app.get('/health', (req, res) => {
