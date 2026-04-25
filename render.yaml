@@ -1,0 +1,35 @@
+services:
+  - type: web
+    name: travian-nodejs
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: DB_HOST
+        fromDatabase:
+          name: travian-db
+          property: host
+      - key: DB_USER
+        fromDatabase:
+          name: travian-db
+          property: user
+      - key: DB_PASSWORD
+        fromDatabase:
+          name: travian-db
+          property: password
+      - key: DB_NAME
+        value: travian
+
+  - type: pserv
+    name: travian-db
+    plan: free
+    ipAllowList: []
+    postgreSQL:
+      version: 15
+      name: travian
+      user: travian_user
