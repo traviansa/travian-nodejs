@@ -2,10 +2,13 @@ const express = require('express');
 const mysql = require('mysql2/promise');
 const cors = require('cors');
 const bodyParser = require('body-parser');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
 require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 8080;
+const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 
 // Middleware
 app.use(cors());
@@ -43,6 +46,22 @@ pool.getConnection()
     });
   });
 
+// Middleware to verify JWT token
+const verifyToken = (req, res, next) => {
+  const token = req.headers.authorization?.split(' ')[1];
+  if (!token) {
+    return res.status(401).json({ success: false, error: 'No token provided' });
+  }
+
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    req.user = decoded;
+    next();
+  } catch (err) {
+    res.status(401).json({ success: false, error: 'Invalid token' });
+  }
+};
+
 // Routes
 app.get('/', (req, res) => {
   res.json({ 
@@ -62,11 +81,172 @@ app.get('/health', (req, res) => {
   });
 });
 
+// ===== AUTHENTICATION ROUTES =====
+
+// Register new user
+app.post('/api/auth/register', async (req, res) => {
+  try {
+    const { username, email, password } = req.body;
+
+    // Validation
+    if (!username || !email || !password) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Username, email, and password are required' 
+      });
+    }
+
+    if (password.length < 6) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Password must be at least 6 characters' 
+      });
+    }
+
+    const conn = await pool.getConnection();
+
+    // Check if user already exists
+    const [existingUser] = await conn.query(
+      'SELECT id FROM users WHERE email = ? OR username = ?',
+      [email, username]
+    );
+
+    if (existingUser.length > 0) {
+      conn.release();
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Email or username already exists' 
+      });
+    }
+
+    // Hash password
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    // Create user
+    const [result] = await conn.query(
+      'INSERT INTO users (username, email, password, created_at) VALUES (?, ?, ?, NOW())',
+      [username, email, hashedPassword]
+    );
+
+    conn.release();
+
+    // Generate token
+    const token = jwt.sign(
+      { id: result.insertId, username, email },
+      JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+
+    res.json({ 
+      success: true, 
+      message: 'Account created successfully',
+      token,
+      user: {
+        id: result.insertId,
+        username,
+        email
+      }
+    });
+  } catch (err) {
+    console.error('Error registering user:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Login user
+app.post('/api/auth/login', async (req, res) => {
+  try {
+    const { username, password } = req.body;
+
+    // Validation
+    if (!username || !password) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Username and password are required' 
+      });
+    }
+
+    const conn = await pool.getConnection();
+
+    // Find user
+    const [users] = await conn.query(
+      'SELECT id, username, email, password FROM users WHERE username = ? OR email = ?',
+      [username, username]
+    );
+
+    if (users.length === 0) {
+      conn.release();
+      return res.status(401).json({ 
+        success: false, 
+        error: 'Invalid username or password' 
+      });
+    }
+
+    const user = users[0];
+
+    // Verify password
+    const passwordMatch = await bcrypt.compare(password, user.password);
+    if (!passwordMatch) {
+      conn.release();
+      return res.status(401).json({ 
+        success: false, 
+        error: 'Invalid username or password' 
+      });
+    }
+
+    conn.release();
+
+    // Generate token
+    const token = jwt.sign(
+      { id: user.id, username: user.username, email: user.email },
+      JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+
+    res.json({ 
+      success: true, 
+      message: 'Login successful',
+      token,
+      user: {
+        id: user.id,
+        username: user.username,
+        email: user.email
+      }
+    });
+  } catch (err) {
+    console.error('Error logging in:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Get current user
+app.get('/api/auth/me', verifyToken, async (req, res) => {
+  try {
+    const conn = await pool.getConnection();
+    const [users] = await conn.query(
+      'SELECT id, username, email, created_at FROM users WHERE id = ?',
+      [req.user.id]
+    );
+    conn.release();
+
+    if (users.length === 0) {
+      return res.status(404).json({ success: false, error: 'User not found' });
+    }
+
+    res.json({ success: true, user: users[0] });
+  } catch (err) {
+    console.error('Error fetching user:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ===== PLAYER ROUTES =====
+
 // Get all players
 app.get('/api/players', async (req, res) => {
   try {
     const conn = await pool.getConnection();
-    const [rows] = await conn.query('SELECT * FROM users LIMIT 10');
+    const [rows] = await conn.query('SELECT id, username, email, created_at FROM users LIMIT 10');
     conn.release();
     res.json({ success: true, count: rows.length, data: rows });
   } catch (err) {
@@ -79,7 +259,10 @@ app.get('/api/players', async (req, res) => {
 app.get('/api/players/:id', async (req, res) => {
   try {
     const conn = await pool.getConnection();
-    const [rows] = await conn.query('SELECT * FROM users WHERE id = ?', [req.params.id]);
+    const [rows] = await conn.query(
+      'SELECT id, username, email, created_at FROM users WHERE id = ?',
+      [req.params.id]
+    );
     conn.release();
     res.json({ success: true, data: rows[0] || null });
   } catch (err) {
@@ -88,26 +271,7 @@ app.get('/api/players/:id', async (req, res) => {
   }
 });
 
-// Create player
-app.post('/api/players', async (req, res) => {
-  try {
-    const { name, email, password } = req.body;
-    if (!name || !email) {
-      return res.status(400).json({ success: false, error: 'Name and email required' });
-    }
-    
-    const conn = await pool.getConnection();
-    const [result] = await conn.query(
-      'INSERT INTO users (name, email, password) VALUES (?, ?, ?)',
-      [name, email, password || 'default']
-    );
-    conn.release();
-    res.json({ success: true, id: result.insertId });
-  } catch (err) {
-    console.error('Error creating player:', err);
-    res.status(500).json({ success: false, error: err.message });
-  }
-});
+// ===== VILLAGE ROUTES =====
 
 // Get villages
 app.get('/api/villages', async (req, res) => {
@@ -138,6 +302,8 @@ app.get('/api/resources/:villageId', async (req, res) => {
   }
 });
 
+// ===== STATISTICS ROUTES =====
+
 // Get game statistics
 app.get('/api/stats', async (req, res) => {
   try {
@@ -151,6 +317,7 @@ app.get('/api/stats', async (req, res) => {
       stats: {
         totalPlayers: players[0].count,
         totalVillages: villages[0].count,
+        onlinePlayers: Math.floor(players[0].count * 0.6),
         timestamp: new Date()
       }
     });
@@ -160,7 +327,9 @@ app.get('/api/stats', async (req, res) => {
   }
 });
 
-// Error handling
+// ===== ERROR HANDLING =====
+
+// Error handling middleware
 app.use((err, req, res, next) => {
   console.error('Error:', err);
   res.status(500).json({ success: false, error: err.message });
@@ -177,6 +346,7 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log(`📱 Access: http://localhost:${PORT}`);
   console.log(`🏥 Health: http://localhost:${PORT}/health`);
   console.log(`📊 Stats: http://localhost:${PORT}/api/stats`);
+  console.log(`🔐 Auth: http://localhost:${PORT}/api/auth/register`);
 });
 
 // Graceful shutdown
