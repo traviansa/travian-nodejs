@@ -35,6 +35,9 @@ const pool = new Pool({
 
 // Test database connection
 let dbConnected = false;
+console.log('🔗 Attempting to connect to database...');
+console.log('📍 Connection string (first 50 chars):', process.env.DATABASE_URL.substring(0, 50) + '...');
+
 pool.connect()
   .then(client => {
     console.log('✅ Database connected successfully!');
@@ -42,7 +45,10 @@ pool.connect()
     client.release();
   })
   .catch(err => {
-    console.error('❌ Database connection failed:', err.message);
+    console.error('❌ Database connection failed!');
+    console.error('Error code:', err.code);
+    console.error('Error message:', err.message);
+    console.error('Full error:', err);
   });
 
 // Initialize database tables
@@ -95,7 +101,10 @@ async function initializeDatabase() {
 }
 
 // Initialize database on startup
-initializeDatabase();
+setTimeout(() => {
+  console.log('⏱️ Initializing database tables...');
+  initializeDatabase();
+}, 2000);
 
 // Middleware to verify JWT token
 const verifyToken = (req, res, next) => {
