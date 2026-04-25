@@ -17,6 +17,10 @@ app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.static('public'));
 
 // Database connection pool (PostgreSQL)
+console.log('🔍 DATABASE_URL:', process.env.DATABASE_URL ? '✅ Set' : '❌ Not set');
+console.log('🔍 NODE_ENV:', process.env.NODE_ENV);
+console.log('🔍 All env keys:', Object.keys(process.env).filter(k => k.includes('DB') || k.includes('DATABASE')));
+
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: process.env.DATABASE_URL ? { rejectUnauthorized: false } : false
