@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>خريطة اللعبة - ترافيان الأول</title>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --primary: #1e3c72;
+            --secondary: #ffd700;
+            --success: #51cf66;
+            --danger: #ff6b6b;
+        }
+
+        body {
+            font-family: 'Cairo', sans-serif;
+            background: linear-gradient(135deg, var(--primary) 0%, #2a5298 100%);
+            color: #333;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        header {
+            background: rgba(0, 0, 0, 0.95);
+            color: white;
+            padding: 15px 30px;
+            border-bottom: 3px solid var(--secondary);
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.3);
+        }
+
+        .header-content {
+            max-width: 1400px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            font-size: 1.5em;
+            font-weight: 900;
+        }
+
+        .controls {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+        }
+
+        .btn {
+            padding: 8px 16px;
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-family: 'Cairo', sans-serif;
+            transition: all 0.3s ease;
+        }
+
+        .btn:hover {
+            background: #0f1f3f;
+            transform: translateY(-2px);
+        }
+
+        main {
+            flex: 1;
+            display: flex;
+            overflow: hidden;
+        }
+
+        .sidebar {
+            width: 300px;
+            background: white;
+            border-right: 2px solid #ddd;
+            overflow-y: auto;
+            padding: 20px;
+        }
+
+        .sidebar h3 {
+            color: var(--primary);
+            margin-bottom: 15px;
+            font-size: 1.2em;
+        }
+
+        .village-item {
+            background: #f5f5f5;
+            padding: 12px;
+            margin-bottom: 10px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border-left: 4px solid var(--primary);
+        }
+
+        .village-item:hover {
+            background: #e8e8e8;
+            transform: translateX(-5px);
+        }
+
+        .village-name {
+            font-weight: 600;
+            color: var(--primary);
+            margin-bottom: 5px;
+        }
+
+        .village-coords {
+            font-size: 0.9em;
+            color: #666;
+        }
+
+        .map-container {
+            flex: 1;
+            background: linear-gradient(135deg, #87ceeb 0%, #e0f6ff 100%);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .map-grid {
+            width: 100%;
+            height: 100%;
+            position: relative;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(50px, 1fr));
+            gap: 1px;
+            background: rgba(255, 255, 255, 0.1);
+            padding: 20px;
+        }
+
+        .tile {
+            background: linear-gradient(135deg, #90ee90 0%, #7cb342 100%);
+            border: 1px solid rgba(0, 0, 0, 0.1);
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5em;
+            position: relative;
+            min-height: 50px;
+        }
+
+        .tile:hover {
+            transform: scale(1.1);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+            z-index: 10;
+        }
+
+        .tile.my-village {
+            background: linear-gradient(135deg, #ffd700 0%, #ffed4e 100%);
+            border: 2px solid var(--secondary);
+        }
+
+        .tile.enemy-village {
+            background: linear-gradient(135deg, #ff6b6b 0%, #ff8787 100%);
+        }
+
+        .tile.ally-village {
+            background: linear-gradient(135deg, #51cf66 0%, #69db7c 100%);
+        }
+
+        .tile-tooltip {
+            position: absolute;
+            background: rgba(0, 0, 0, 0.9);
+            color: white;
+            padding: 8px 12px;
+            border-radius: 4px;
+            font-size: 0.8em;
+            white-space: nowrap;
+            pointer-events: none;
+            bottom: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            display: none;
+            z-index: 100;
+        }
+
+        .tile:hover .tile-tooltip {
+            display: block;
+        }
+
+        .legend {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            background: white;
+            padding: 15px 20px;
+            border-radius: 8px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 8px;
+            font-size: 0.9em;
+        }
+
+        .legend-color {
+            width: 20px;
+            height: 20px;
+            border-radius: 3px;
+        }
+
+        .info-panel {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: white;
+            padding: 15px 20px;
+            border-radius: 8px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+            max-width: 250px;
+        }
+
+        .info-title {
+            color: var(--primary);
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+
+        .info-content {
+            font-size: 0.9em;
+            color: #666;
+            line-height: 1.6;
+        }
+
+        @media (max-width: 768px) {
+            .sidebar {
+                width: 200px;
+            }
+
+            .tile {
+                min-height: 40px;
+                font-size: 1.2em;
+            }
+
+            .legend {
+                bottom: 10px;
+                right: 10px;
+                padding: 10px 15px;
+            }
+
+            .info-panel {
+                top: 10px;
+                left: 10px;
+                max-width: 200px;
+                font-size: 0.85em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="header-content">
+            <div class="logo">
+                <span>🗺️</span>
+                <span>خريطة اللعبة</span>
+            </div>
+            <div class="controls">
+                <button class="btn" onclick="zoomIn()">🔍+</button>
+                <button class="btn" onclick="zoomOut()">🔍-</button>
+                <button class="btn" onclick="resetMap()">↺ إعادة تعيين</button>
+                <button class="btn" onclick="goHome()">🏠 الرئيسية</button>
+            </div>
+        </div>
+    </header>
+
+    <main>
+        <div class="sidebar">
+            <h3>🏘️ قراي</h3>
+            <div id="villagesList"></div>
+        </div>
+
+        <div class="map-container">
+            <div class="info-panel">
+                <div class="info-title">معلومات الخريطة</div>
+                <div class="info-content">
+                    <p><strong>الإحداثيات:</strong> <span id="coordsInfo">-</span></p>
+                    <p><strong>الموضع:</strong> <span id="positionInfo">-</span></p>
+                </div>
+            </div>
+
+            <div class="map-grid" id="mapGrid"></div>
+
+            <div class="legend">
+                <div class="legend-item">
+                    <div class="legend-color" style="background: linear-gradient(135deg, #ffd700 0%, #ffed4e 100%);"></div>
+                    <span>قراي</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: linear-gradient(135deg, #51cf66 0%, #69db7c 100%);"></div>
+                    <span>حلفاء</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: linear-gradient(135deg, #ff6b6b 0%, #ff8787 100%);"></div>
+                    <span>أعداء</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: linear-gradient(135deg, #90ee90 0%, #7cb342 100%);"></div>
+                    <span>أراضي فارغة</span>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        const MAP_SIZE = 100;
+        const GRID_COLS = 10;
+        let villages = [];
+        let currentZoom = 1;
+
+        // Initialize map
+        window.addEventListener('load', () => {
+            loadVillages();
+            generateMap();
+        });
+
+        // Load villages from API
+        async function loadVillages() {
+            try {
+                const token = localStorage.getItem('authToken');
+                const response = await fetch('/api/villages', {
+                    headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+                });
+                const data = await response.json();
+
+                if (data.success) {
+                    villages = data.data || [];
+                    displayVillagesList();
+                }
+            } catch (error) {
+                console.error('Error loading villages:', error);
+            }
+        }
+
+        // Display villages list in sidebar
+        function displayVillagesList() {
+            const list = document.getElementById('villagesList');
+            list.innerHTML = villages.map(v => `
+                <div class="village-item" onclick="centerMap(${v.x}, ${v.y})">
+                    <div class="village-name">${v.name}</div>
+                    <div class="village-coords">(${v.x}, ${v.y})</div>
+                </div>
+            `).join('');
+        }
+
+        // Generate map grid
+        function generateMap() {
+            const mapGrid = document.getElementById('mapGrid');
+            mapGrid.innerHTML = '';
+
+            for (let i = 0; i < MAP_SIZE; i++) {
+                for (let j = 0; j < MAP_SIZE; j++) {
+                    const tile = document.createElement('div');
+                    tile.className = 'tile';
+
+                    // Check if this tile has a village
+                    const village = villages.find(v => v.x === j && v.y === i);
+                    if (village) {
+                        tile.classList.add('my-village');
+                        tile.innerHTML = '🏰';
+                        tile.innerHTML += `<div class="tile-tooltip">${village.name}</div>`;
+                    } else {
+                        tile.innerHTML = '🌾';
+                    }
+
+                    tile.addEventListener('click', () => selectTile(j, i, village));
+                    mapGrid.appendChild(tile);
+                }
+            }
+        }
+
+        // Select tile
+        function selectTile(x, y, village) {
+            document.getElementById('coordsInfo').textContent = `(${x}, ${y})`;
+            document.getElementById('positionInfo').textContent = village ? village.name : 'أرض فارغة';
+        }
+
+        // Center map on coordinates
+        function centerMap(x, y) {
+            selectTile(x, y, villages.find(v => v.x === x && v.y === y));
+        }
+
+        // Zoom in
+        function zoomIn() {
+            currentZoom = Math.min(currentZoom + 0.2, 2);
+            const mapGrid = document.getElementById('mapGrid');
+            mapGrid.style.transform = `scale(${currentZoom})`;
+        }
+
+        // Zoom out
+        function zoomOut() {
+            currentZoom = Math.max(currentZoom - 0.2, 0.5);
+            const mapGrid = document.getElementById('mapGrid');
+            mapGrid.style.transform = `scale(${currentZoom})`;
+        }
+
+        // Reset map
+        function resetMap() {
+            currentZoom = 1;
+            const mapGrid = document.getElementById('mapGrid');
+            mapGrid.style.transform = 'scale(1)';
+        }
+
+        // Go home
+        function goHome() {
+            window.location.href = '/';
+        }
+    </script>
+</body>
+</html>

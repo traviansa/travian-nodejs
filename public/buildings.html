@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>المباني - ترافيان الأول</title>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --primary: #1e3c72;
+            --secondary: #ffd700;
+        }
+
+        body {
+            font-family: 'Cairo', sans-serif;
+            background: linear-gradient(135deg, var(--primary) 0%, #2a5298 100%);
+            color: #333;
+            min-height: 100vh;
+        }
+
+        header {
+            background: rgba(0, 0, 0, 0.95);
+            color: white;
+            padding: 15px 30px;
+            border-bottom: 3px solid var(--secondary);
+        }
+
+        .header-content {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            font-size: 1.5em;
+            font-weight: 900;
+        }
+
+        .btn {
+            padding: 8px 16px;
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-family: 'Cairo', sans-serif;
+        }
+
+        .btn:hover {
+            background: #0f1f3f;
+        }
+
+        main {
+            max-width: 1200px;
+            margin: 40px auto;
+            padding: 0 20px;
+        }
+
+        .page-title {
+            color: white;
+            font-size: 2.5em;
+            margin-bottom: 30px;
+            text-align: center;
+        }
+
+        .buildings-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+        }
+
+        .building-card {
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            transition: all 0.3s ease;
+        }
+
+        .building-card:hover {
+            transform: translateY(-10px);
+            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.3);
+        }
+
+        .building-header {
+            background: linear-gradient(135deg, var(--primary) 0%, #2a5298 100%);
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .building-icon {
+            font-size: 3em;
+            margin-bottom: 10px;
+        }
+
+        .building-name {
+            font-size: 1.5em;
+            font-weight: 700;
+            margin-bottom: 5px;
+        }
+
+        .building-level {
+            font-size: 0.9em;
+            opacity: 0.9;
+        }
+
+        .building-body {
+            padding: 20px;
+        }
+
+        .building-description {
+            color: #666;
+            margin-bottom: 15px;
+            line-height: 1.6;
+            font-size: 0.95em;
+        }
+
+        .building-stats {
+            background: #f5f5f5;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+        }
+
+        .stat-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            font-size: 0.9em;
+        }
+
+        .stat-label {
+            color: #666;
+            font-weight: 600;
+        }
+
+        .stat-value {
+            color: var(--primary);
+            font-weight: 700;
+        }
+
+        .building-costs {
+            background: #fff3cd;
+            padding: 12px;
+            border-radius: 6px;
+            margin-bottom: 15px;
+            border-left: 4px solid var(--secondary);
+        }
+
+        .cost-item {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.85em;
+            margin-bottom: 5px;
+        }
+
+        .cost-label {
+            color: #666;
+        }
+
+        .cost-value {
+            font-weight: 600;
+            color: var(--primary);
+        }
+
+        .upgrade-btn {
+            width: 100%;
+            padding: 12px;
+            background: linear-gradient(135deg, var(--primary) 0%, #2a5298 100%);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-family: 'Cairo', sans-serif;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .upgrade-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(30, 60, 114, 0.3);
+        }
+
+        .upgrade-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .time-remaining {
+            text-align: center;
+            color: #666;
+            font-size: 0.9em;
+            margin-top: 10px;
+        }
+
+        @media (max-width: 768px) {
+            .buildings-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .page-title {
+                font-size: 1.8em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="header-content">
+            <div class="logo">🏢 المباني</div>
+            <button class="btn" onclick="goHome()">🏠 الرئيسية</button>
+        </div>
+    </header>
+
+    <main>
+        <h1 class="page-title">🏗️ تحسين المباني</h1>
+
+        <div class="buildings-grid" id="buildingsGrid"></div>
+    </main>
+
+    <script>
+        const BUILDINGS = [
+            {
+                id: 1,
+                name: 'مقر القيادة',
+                icon: '🏛️',
+                description: 'مركز إدارة القرية والتحكم بالموارد',
+                level: 1,
+                bonus: 'إنتاج الموارد +10%',
+                costs: { wood: 100, clay: 100, iron: 100, crop: 50 },
+                time: 300
+            },
+            {
+                id: 2,
+                name: 'مستودع الموارد',
+                icon: '📦',
+                description: 'تخزين الموارد والحماية من السرقة',
+                level: 1,
+                bonus: 'سعة التخزين +1000',
+                costs: { wood: 150, clay: 150, iron: 100, crop: 50 },
+                time: 400
+            },
+            {
+                id: 3,
+                name: 'ثكنة الجنود',
+                icon: '⚔️',
+                description: 'تدريب وتجنيد الجنود',
+                level: 1,
+                bonus: 'سعة الجنود +50',
+                costs: { wood: 200, clay: 100, iron: 150, crop: 100 },
+                time: 500
+            },
+            {
+                id: 4,
+                name: 'حقل القمح',
+                icon: '🌾',
+                description: 'زراعة المحاصيل والغذاء',
+                level: 1,
+                bonus: 'إنتاج المحاصيل +5/ساعة',
+                costs: { wood: 80, clay: 80, iron: 80, crop: 40 },
+                time: 250
+            },
+            {
+                id: 5,
+                name: 'منجم الخشب',
+                icon: '🪵',
+                description: 'استخراج الخشب من الغابات',
+                level: 1,
+                bonus: 'إنتاج الخشب +5/ساعة',
+                costs: { wood: 50, clay: 100, iron: 80, crop: 50 },
+                time: 300
+            },
+            {
+                id: 6,
+                name: 'منجم الحديد',
+                icon: '⛏️',
+                description: 'استخراج الحديد من المناجم',
+                level: 1,
+                bonus: 'إنتاج الحديد +5/ساعة',
+                costs: { wood: 100, clay: 80, iron: 50, crop: 50 },
+                time: 300
+            }
+        ];
+
+        // Initialize buildings display
+        window.addEventListener('load', () => {
+            displayBuildings();
+        });
+
+        // Display buildings
+        function displayBuildings() {
+            const grid = document.getElementById('buildingsGrid');
+            grid.innerHTML = BUILDINGS.map(building => `
+                <div class="building-card">
+                    <div class="building-header">
+                        <div class="building-icon">${building.icon}</div>
+                        <div class="building-name">${building.name}</div>
+                        <div class="building-level">المستوى ${building.level}</div>
+                    </div>
+                    <div class="building-body">
+                        <div class="building-description">${building.description}</div>
+                        
+                        <div class="building-stats">
+                            <div class="stat-item">
+                                <span class="stat-label">المكافأة:</span>
+                                <span class="stat-value">${building.bonus}</span>
+                            </div>
+                        </div>
+
+                        <div class="building-costs">
+                            <div class="cost-item">
+                                <span class="cost-label">🪵 الخشب:</span>
+                                <span class="cost-value">${building.costs.wood}</span>
+                            </div>
+                            <div class="cost-item">
+                                <span class="cost-label">🧱 الطين:</span>
+                                <span class="cost-value">${building.costs.clay}</span>
+                            </div>
+                            <div class="cost-item">
+                                <span class="cost-label">⛓️ الحديد:</span>
+                                <span class="cost-value">${building.costs.iron}</span>
+                            </div>
+                            <div class="cost-item">
+                                <span class="cost-label">🌾 المحاصيل:</span>
+                                <span class="cost-value">${building.costs.crop}</span>
+                            </div>
+                        </div>
+
+                        <button class="upgrade-btn" onclick="upgradeBuilding(${building.id})">
+                            ⬆️ ترقية المبنى
+                        </button>
+                        
+                        <div class="time-remaining">
+                            ⏱️ الوقت: ${building.time} ثانية
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // Upgrade building
+        function upgradeBuilding(buildingId) {
+            alert(`تم بدء ترقية المبنى #${buildingId}`);
+        }
+
+        // Go home
+        function goHome() {
+            window.location.href = '/';
+        }
+    </script>
+</body>
+</html>
