@@ -39,11 +39,6 @@ pool.getConnection()
   })
   .catch(err => {
     console.error('❌ Database connection failed:', err.message);
-    console.error('Connection details:', {
-      host: process.env.DB_HOST,
-      user: process.env.DB_USER,
-      database: process.env.DB_NAME
-    });
   });
 
 // Middleware to verify JWT token
@@ -72,7 +67,6 @@ app.get('/', (req, res) => {
   });
 });
 
-// Health check
 app.get('/health', (req, res) => {
   res.json({ 
     status: 'ok', 
@@ -83,12 +77,10 @@ app.get('/health', (req, res) => {
 
 // ===== AUTHENTICATION ROUTES =====
 
-// Register new user
 app.post('/api/auth/register', async (req, res) => {
   try {
     const { username, email, password } = req.body;
 
-    // Validation
     if (!username || !email || !password) {
       return res.status(400).json({ 
         success: false, 
@@ -105,7 +97,6 @@ app.post('/api/auth/register', async (req, res) => {
 
     const conn = await pool.getConnection();
 
-    // Check if user already exists
     const [existingUser] = await conn.query(
       'SELECT id FROM users WHERE email = ? OR username = ?',
       [email, username]
@@ -119,20 +110,33 @@ app.post('/api/auth/register', async (req, res) => {
       });
     }
 
-    // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Create user
     const [result] = await conn.query(
       'INSERT INTO users (username, email, password, created_at) VALUES (?, ?, ?, NOW())',
       [username, email, hashedPassword]
     );
 
+    const userId = result.insertId;
+
+    // Create initial village for new player
+    const [villageResult] = await conn.query(
+      'INSERT INTO villages (user_id, name, x, y, population, created_at) VALUES (?, ?, ?, ?, ?, NOW())',
+      [userId, `قرية ${username}`, Math.floor(Math.random() * 100), Math.floor(Math.random() * 100), 750]
+    );
+
+    const villageId = villageResult.insertId;
+
+    // Create initial resources
+    await conn.query(
+      'INSERT INTO resources (village_id, wood, clay, iron, crop, updated_at) VALUES (?, ?, ?, ?, ?, NOW())',
+      [villageId, 500, 500, 500, 500]
+    );
+
     conn.release();
 
-    // Generate token
     const token = jwt.sign(
-      { id: result.insertId, username, email },
+      { id: userId, username, email },
       JWT_SECRET,
       { expiresIn: '7d' }
     );
@@ -142,7 +146,7 @@ app.post('/api/auth/register', async (req, res) => {
       message: 'Account created successfully',
       token,
       user: {
-        id: result.insertId,
+        id: userId,
         username,
         email
       }
@@ -153,12 +157,10 @@ app.post('/api/auth/register', async (req, res) => {
   }
 });
 
-// Login user
 app.post('/api/auth/login', async (req, res) => {
   try {
     const { username, password } = req.body;
 
-    // Validation
     if (!username || !password) {
       return res.status(400).json({ 
         success: false, 
@@ -168,7 +170,6 @@ app.post('/api/auth/login', async (req, res) => {
 
     const conn = await pool.getConnection();
 
-    // Find user
     const [users] = await conn.query(
       'SELECT id, username, email, password FROM users WHERE username = ? OR email = ?',
       [username, username]
@@ -184,7 +185,6 @@ app.post('/api/auth/login', async (req, res) => {
 
     const user = users[0];
 
-    // Verify password
     const passwordMatch = await bcrypt.compare(password, user.password);
     if (!passwordMatch) {
       conn.release();
@@ -196,7 +196,6 @@ app.post('/api/auth/login', async (req, res) => {
 
     conn.release();
 
-    // Generate token
     const token = jwt.sign(
       { id: user.id, username: user.username, email: user.email },
       JWT_SECRET,
@@ -219,7 +218,6 @@ app.post('/api/auth/login', async (req, res) => {
   }
 });
 
-// Get current user
 app.get('/api/auth/me', verifyToken, async (req, res) => {
   try {
     const conn = await pool.getConnection();
@@ -240,71 +238,193 @@ app.get('/api/auth/me', verifyToken, async (req, res) => {
   }
 });
 
-// ===== PLAYER ROUTES =====
+// ===== PLAYER DASHBOARD ROUTES =====
 
-// Get all players
-app.get('/api/players', async (req, res) => {
+app.get('/api/dashboard', verifyToken, async (req, res) => {
   try {
     const conn = await pool.getConnection();
-    const [rows] = await conn.query('SELECT id, username, email, created_at FROM users LIMIT 10');
-    conn.release();
-    res.json({ success: true, count: rows.length, data: rows });
-  } catch (err) {
-    console.error('Error fetching players:', err);
-    res.status(500).json({ success: false, error: err.message });
-  }
-});
 
-// Get player by ID
-app.get('/api/players/:id', async (req, res) => {
-  try {
-    const conn = await pool.getConnection();
-    const [rows] = await conn.query(
-      'SELECT id, username, email, created_at FROM users WHERE id = ?',
-      [req.params.id]
+    // Get user villages
+    const [villages] = await conn.query(
+      'SELECT id, name, x, y, population FROM villages WHERE user_id = ?',
+      [req.user.id]
     );
+
+    // Get total stats
+    const [stats] = await conn.query(
+      'SELECT COUNT(*) as villageCount, SUM(population) as totalPopulation FROM villages WHERE user_id = ?',
+      [req.user.id]
+    );
+
     conn.release();
-    res.json({ success: true, data: rows[0] || null });
+
+    res.json({
+      success: true,
+      villages: villages,
+      stats: {
+        villageCount: stats[0].villageCount || 0,
+        totalPopulation: stats[0].totalPopulation || 0
+      }
+    });
   } catch (err) {
-    console.error('Error fetching player:', err);
+    console.error('Error fetching dashboard:', err);
     res.status(500).json({ success: false, error: err.message });
   }
 });
 
 // ===== VILLAGE ROUTES =====
 
-// Get villages
-app.get('/api/villages', async (req, res) => {
+app.get('/api/villages', verifyToken, async (req, res) => {
   try {
     const conn = await pool.getConnection();
-    const [rows] = await conn.query('SELECT * FROM villages LIMIT 20');
+    const [villages] = await conn.query(
+      'SELECT id, name, x, y, population, created_at FROM villages WHERE user_id = ?',
+      [req.user.id]
+    );
     conn.release();
-    res.json({ success: true, count: rows.length, data: rows });
+
+    res.json({ 
+      success: true, 
+      count: villages.length, 
+      data: villages 
+    });
   } catch (err) {
     console.error('Error fetching villages:', err);
     res.status(500).json({ success: false, error: err.message });
   }
 });
 
-// Get resources
-app.get('/api/resources/:villageId', async (req, res) => {
+app.get('/api/villages/:villageId', verifyToken, async (req, res) => {
   try {
     const conn = await pool.getConnection();
-    const [rows] = await conn.query(
+
+    const [villages] = await conn.query(
+      'SELECT * FROM villages WHERE id = ? AND user_id = ?',
+      [req.params.villageId, req.user.id]
+    );
+
+    if (villages.length === 0) {
+      conn.release();
+      return res.status(404).json({ success: false, error: 'Village not found' });
+    }
+
+    const village = villages[0];
+
+    // Get village resources
+    const [resources] = await conn.query(
       'SELECT * FROM resources WHERE village_id = ?',
       [req.params.villageId]
     );
+
     conn.release();
-    res.json({ success: true, data: rows[0] || null });
+
+    res.json({
+      success: true,
+      village: village,
+      resources: resources[0] || {}
+    });
+  } catch (err) {
+    console.error('Error fetching village:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ===== RESOURCES ROUTES =====
+
+app.get('/api/resources/:villageId', verifyToken, async (req, res) => {
+  try {
+    const conn = await pool.getConnection();
+
+    // Verify village ownership
+    const [villages] = await conn.query(
+      'SELECT id FROM villages WHERE id = ? AND user_id = ?',
+      [req.params.villageId, req.user.id]
+    );
+
+    if (villages.length === 0) {
+      conn.release();
+      return res.status(403).json({ success: false, error: 'Access denied' });
+    }
+
+    const [resources] = await conn.query(
+      'SELECT * FROM resources WHERE village_id = ?',
+      [req.params.villageId]
+    );
+
+    conn.release();
+
+    res.json({ 
+      success: true, 
+      data: resources[0] || {} 
+    });
   } catch (err) {
     console.error('Error fetching resources:', err);
     res.status(500).json({ success: false, error: err.message });
   }
 });
 
+// Update resources (production simulation)
+app.post('/api/resources/:villageId/update', verifyToken, async (req, res) => {
+  try {
+    const conn = await pool.getConnection();
+
+    // Verify village ownership
+    const [villages] = await conn.query(
+      'SELECT id FROM villages WHERE id = ? AND user_id = ?',
+      [req.params.villageId, req.user.id]
+    );
+
+    if (villages.length === 0) {
+      conn.release();
+      return res.status(403).json({ success: false, error: 'Access denied' });
+    }
+
+    // Get current resources
+    const [resources] = await conn.query(
+      'SELECT * FROM resources WHERE village_id = ?',
+      [req.params.villageId]
+    );
+
+    if (resources.length === 0) {
+      conn.release();
+      return res.status(404).json({ success: false, error: 'Resources not found' });
+    }
+
+    const resource = resources[0];
+    const productionRate = 10; // Per hour
+
+    // Update resources with production
+    await conn.query(
+      'UPDATE resources SET wood = ?, clay = ?, iron = ?, crop = ?, updated_at = NOW() WHERE village_id = ?',
+      [
+        resource.wood + productionRate,
+        resource.clay + productionRate,
+        resource.iron + productionRate,
+        resource.crop + productionRate,
+        req.params.villageId
+      ]
+    );
+
+    const [updatedResources] = await conn.query(
+      'SELECT * FROM resources WHERE village_id = ?',
+      [req.params.villageId]
+    );
+
+    conn.release();
+
+    res.json({
+      success: true,
+      message: 'Resources updated',
+      data: updatedResources[0]
+    });
+  } catch (err) {
+    console.error('Error updating resources:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // ===== STATISTICS ROUTES =====
 
-// Get game statistics
 app.get('/api/stats', async (req, res) => {
   try {
     const conn = await pool.getConnection();
@@ -327,15 +447,28 @@ app.get('/api/stats', async (req, res) => {
   }
 });
 
+// Get all players (public)
+app.get('/api/players', async (req, res) => {
+  try {
+    const conn = await pool.getConnection();
+    const [rows] = await conn.query(
+      'SELECT u.id, u.username, u.email, u.created_at, COUNT(v.id) as villageCount FROM users u LEFT JOIN villages v ON u.id = v.user_id GROUP BY u.id LIMIT 20'
+    );
+    conn.release();
+    res.json({ success: true, count: rows.length, data: rows });
+  } catch (err) {
+    console.error('Error fetching players:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // ===== ERROR HANDLING =====
 
-// Error handling middleware
 app.use((err, req, res, next) => {
   console.error('Error:', err);
   res.status(500).json({ success: false, error: err.message });
 });
 
-// 404 handler
 app.use((req, res) => {
   res.status(404).json({ success: false, error: 'Route not found' });
 });
@@ -349,7 +482,6 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log(`🔐 Auth: http://localhost:${PORT}/api/auth/register`);
 });
 
-// Graceful shutdown
 process.on('SIGTERM', () => {
   console.log('SIGTERM received, shutting down gracefully');
   pool.end();
