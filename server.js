@@ -314,6 +314,33 @@ app.get('/api/dashboard', verifyToken, async (req, res) => {
   }
 });
 
+// ===== STATS ROUTE =====
+
+app.get('/api/stats', async (req, res) => {
+  try {
+    const client = await pool.connect();
+
+    try {
+      const usersResult = await client.query('SELECT COUNT(*) as count FROM users');
+      const villagesResult = await client.query('SELECT COUNT(*) as count FROM villages');
+      
+      res.json({
+        success: true,
+        stats: {
+          totalPlayers: parseInt(usersResult.rows[0].count) || 0,
+          totalVillages: parseInt(villagesResult.rows[0].count) || 0,
+          onlinePlayers: Math.floor(Math.random() * 50) + 10 // Placeholder
+        }
+      });
+    } finally {
+      client.release();
+    }
+  } catch (err) {
+    console.error('Error fetching stats:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // ===== VILLAGES ROUTES =====
 
 app.get('/api/villages', verifyToken, async (req, res) => {
@@ -355,6 +382,27 @@ app.get('/api/villages/:villageId', verifyToken, async (req, res) => {
       res.json({
         success: true,
         village: result.rows[0]
+      });
+    } finally {
+      client.release();
+    }
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ===== PLAYERS ROUTE =====
+
+app.get('/api/players', verifyToken, async (req, res) => {
+  try {
+    const client = await pool.connect();
+
+    try {
+      const result = await client.query('SELECT id, username, email, created_at FROM users LIMIT 50');
+      
+      res.json({
+        success: true,
+        data: result.rows
       });
     } finally {
       client.release();
