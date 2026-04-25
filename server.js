@@ -21,9 +21,16 @@ console.log('🔍 DATABASE_URL:', process.env.DATABASE_URL ? '✅ Set' : '❌ No
 console.log('🔍 NODE_ENV:', process.env.NODE_ENV);
 console.log('🔍 All env keys:', Object.keys(process.env).filter(k => k.includes('DB') || k.includes('DATABASE')));
 
+// Validate DATABASE_URL
+if (!process.env.DATABASE_URL) {
+  console.error('❌ CRITICAL: DATABASE_URL is not set!');
+  console.error('❌ Please set DATABASE_URL environment variable');
+  process.exit(1);
+}
+
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: process.env.DATABASE_URL ? { rejectUnauthorized: false } : false
+  ssl: { rejectUnauthorized: false }
 });
 
 // Test database connection
